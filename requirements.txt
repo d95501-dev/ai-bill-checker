@@ -1,0 +1,7 @@
+streamlit
+easyocr
+opencv-python
+pandas
+fpdf
+torch
+torchvision
