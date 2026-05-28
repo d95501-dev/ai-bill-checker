@@ -16,7 +16,7 @@ except:
     st.stop()
 
 # Model initialize (Stable method)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
 
