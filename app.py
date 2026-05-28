@@ -3,23 +3,23 @@ import google.generativeai as genai
 import json
 from PIL import Image
 
-# Page Configuration
+# 1. Page Setup
 st.set_page_config(page_title="AI Bill Checker", layout="centered")
 st.title("🧾 AI Bill Checker")
 
-# API Key Config - 'st.secrets' ka istemal (Cloud ke liye zaroori)
+# 2. Securely Load API Key
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
-except Exception as e:
-    st.error("API Key missing! Check Secrets in App Settings.")
+except:
+    st.error("API Key not set in Secrets!")
     st.stop()
 
-# Model Initializer - 'gemini-1.5-flash' stable version
+# 3. Model Configuration (Using stable google-generativeai SDK)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# File Uploader
-uploaded_file = st.file_uploader("Upload Dairy Bill", type=["jpg", "jpeg", "png"])
+# 4. File Uploader
+uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
@@ -27,14 +27,13 @@ if uploaded_file:
     
     if st.button("Analyze Bill"):
         st.write("🤖 AI is analyzing...")
-        prompt = "Analyze this dairy bill. Extract all items and return in JSON format: {'items': [{'name': '', 'amount': 0}], 'bill_total_written': 0}"
+        prompt = """Analyze this dairy bill. Extract all items (date, name, qty, rate, amount) 
+        and the total written amount. Return ONLY valid JSON in this format:
+        {"items": [{"name": "Item", "amount": 0}], "bill_total_written": 0}"""
         
         try:
+            # Direct Model call with stable SDK
             response = model.generate_content([prompt, image])
-            data = json.loads(response.text.replace("```json", "").replace("```", "").strip())
-            
-            st.subheader("Extracted Details")
-            st.json(data)
+            st.json(response.text) # Check raw output first
         except Exception as e:
-            st.error(f"Processing Error: {e}")
-            st.error(f"AI Processing Error: {e}")
+            st.error(f"Error: {e}")
