@@ -9,7 +9,6 @@ st.title("🧾 AI Bill Checker")
 
 # 2. Securely Configure API Key
 try:
-    # This retrieves the key from the Secrets menu in your app settings
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except KeyError:
@@ -23,19 +22,29 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
+    # Update: 'width' parameter use kiya hai naye Streamlit ke hisaab se
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Bill", use_container_width=True)
+    st.image(image, caption="Uploaded Bill", width=None) # 'width=None' automatically container fit karta hai
     
     if st.button("Analyze Bill"):
         st.write("🤖 AI is analyzing...")
         prompt = """Analyze this bill. Extract items (name, amount) and the total. 
-        Return ONLY JSON: {"items": [{"name": "Item", "amount": 0}], "bill_total_written": 0}"""
+        Return ONLY valid JSON format:
+        {"items": [{"name": "Item Name", "amount": 0}], "bill_total_written": 0}"""
         
         try:
             response = model.generate_content([prompt, image])
-            # Remove markdown code blocks if the AI includes them
             clean_json = response.text.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean_json)
-            st.json(data)
+            
+            # Result Display in Table Format
+            st.subheader("📋 Bill Items")
+            import pandas as pd
+            df = pd.DataFrame(data["items"])
+            st.table(df)
+            
+            st.subheader("💰 Total Summary")
+            st.metric("Total Written on Bill", f"₹{data['bill_total_written']}")
+            
         except Exception as e:
             st.error(f"Processing Error: {e}")
