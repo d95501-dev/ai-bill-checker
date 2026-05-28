@@ -1,2 +1,7 @@
 streamlit
-google-generativeai
+easyocr
+opencv-python
+pandas
+fpdf
+torch
+torchvision
