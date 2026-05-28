@@ -1,32 +1,52 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+import json
 
-st.set_page_config(page_title="AI Bill Checker")
 st.title("🧾 AI Bill Checker")
 
-# Configure API Key securely
-try:
-    # Ensure GEMINI_API_KEY is set in Streamlit Cloud Secrets
-    api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-except Exception as e:
-    st.error("API Key not found in Secrets.")
-    st.stop()
+# API Key
+api_key = st.secrets["GEMINI_API_KEY"]
 
-# Initialize the model explicitly
-model = genai.GenerativeModel('gemini-1.5-flash')
+genai.configure(api_key=api_key)
 
-uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "png", "jpeg"])
+# Updated Model
+model = genai.GenerativeModel("gemini-2.0-flash")
+
+uploaded_file = st.file_uploader(
+    "Upload Bill Image",
+    type=["jpg", "jpeg", "png"]
+)
 
 if uploaded_file:
+
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Bill")
-    
+
+    st.image(image)
+
     if st.button("Analyze"):
+
+        prompt = """
+        Extract all bill items and total.
+
+        Return ONLY JSON.
+        """
+
         try:
-            # Using the established model object
-            response = model.generate_content(["Extract items and total as JSON", image])
-            st.write(response.text)
+
+            response = model.generate_content(
+                [prompt, image]
+            )
+
+            text = response.text
+
+            text = text.replace("```json", "")
+            text = text.replace("```", "")
+
+            data = json.loads(text)
+
+            st.json(data)
+
         except Exception as e:
+
             st.error(f"Analysis Error: {e}")
