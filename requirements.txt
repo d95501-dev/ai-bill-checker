@@ -1,7 +1,3 @@
 streamlit
-easyocr
-opencv-python
-pandas
-fpdf
-torch
-torchvision
+google-generativeai
+pillow
