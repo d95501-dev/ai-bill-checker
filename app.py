@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import json
+import pandas as pd
 from PIL import Image
 
 # 1. Page Config
@@ -22,9 +23,9 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    # Update: 'width' parameter use kiya hai naye Streamlit ke hisaab se
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Bill", width=None) # 'width=None' automatically container fit karta hai
+    # FIX: 'width=None' hata diya hai, isse error fix ho jayega
+    st.image(image, caption="Uploaded Bill") 
     
     if st.button("Analyze Bill"):
         st.write("🤖 AI is analyzing...")
@@ -37,9 +38,8 @@ if uploaded_file:
             clean_json = response.text.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean_json)
             
-            # Result Display in Table Format
+            # Result Display
             st.subheader("📋 Bill Items")
-            import pandas as pd
             df = pd.DataFrame(data["items"])
             st.table(df)
             
