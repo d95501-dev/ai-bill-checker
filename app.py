@@ -3,16 +3,20 @@ import google.generativeai as genai
 from PIL import Image
 import json
 
+st.set_page_config(page_title="AI Bill Checker")
+
 st.title("🧾 AI Bill Checker")
 
-# API Key
-api_key = st.secrets["GEMINI_API_KEY"]
+# Direct API Key
+api_key = "YOUR_NEW_API_KEY"
 
+# Configure Gemini
 genai.configure(api_key=api_key)
 
-# Updated Model
-model = genai.GenerativeModel("gemini-2.0-flash")
+# Working Model
+model = genai.GenerativeModel("gemini-1.5-flash")
 
+# Upload
 uploaded_file = st.file_uploader(
     "Upload Bill Image",
     type=["jpg", "jpeg", "png"]
@@ -22,31 +26,60 @@ if uploaded_file:
 
     image = Image.open(uploaded_file)
 
-    st.image(image)
+    st.image(
+        image,
+        caption="Uploaded Bill",
+        use_container_width=True
+    )
 
-    if st.button("Analyze"):
+    if st.button("Analyze Bill"):
 
-        prompt = """
-        Extract all bill items and total.
+        with st.spinner("Analyzing Bill..."):
 
-        Return ONLY JSON.
-        """
+            prompt = """
+            Extract bill items and total amount.
 
-        try:
+            Return ONLY valid JSON.
 
-            response = model.generate_content(
-                [prompt, image]
-            )
+            Example:
+            {
+              "items":[
+                {
+                  "name":"Rice",
+                  "qty":"2",
+                  "rate":"50",
+                  "amount":"100"
+                }
+              ],
+              "total":"100"
+            }
+            """
 
-            text = response.text
+            try:
 
-            text = text.replace("```json", "")
-            text = text.replace("```", "")
+                response = model.generate_content(
+                    [prompt, image]
+                )
 
-            data = json.loads(text)
+                text = response.text
 
-            st.json(data)
+                # Remove markdown
+                text = text.replace("```json", "")
+                text = text.replace("```", "")
 
-        except Exception as e:
+                data = json.loads(text)
 
-            st.error(f"Analysis Error: {e}")
+                st.success("Analysis Complete ✅")
+
+                st.json(data)
+
+            except Exception as e:
+
+                error_msg = str(e)
+
+                if "429" in error_msg:
+                    st.error("Gemini API quota exceeded. Try later.")
+                elif "404" in error_msg:
+                    st.error("Model not found.")
+                else:
+                    st.error(f"Analysis Error: {error_msg}")
