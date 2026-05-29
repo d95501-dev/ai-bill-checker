@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
@@ -7,15 +8,16 @@ st.set_page_config(page_title="AI Bill Checker")
 
 st.title("🧾 AI Bill Checker")
 
-# Streamlit Secrets se key load karna
+# Streamlit Secrets se key load karna aur use Environment Variable banana
 if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
+    # Yeh line 401 error ko fix karegi
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 else:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# Configure Gemini
-genai.configure(api_key=api_key)
+# Configure Gemini (Environment variable se auto-pick karega)
+genai.configure()
 
 # Working Model
 model = genai.GenerativeModel("gemini-1.5-flash")
