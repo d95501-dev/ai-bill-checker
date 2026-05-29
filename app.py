@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
@@ -8,19 +7,19 @@ st.set_page_config(page_title="AI Bill Checker")
 
 st.title("🧾 AI Bill Checker")
 
-# Streamlit Secrets se key load karna aur use Environment Variable banana
+# Streamlit Secrets se key load karna
 if "GEMINI_API_KEY" in st.secrets:
-    # Yeh line 401 error ko fix karegi
-    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+    api_key = st.secrets["GEMINI_API_KEY"]
 else:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# Configure Gemini (Environment variable se auto-pick karega)
-genai.configure()
-
-# Working Model
-model = genai.GenerativeModel("gemini-1.5-flash")
+# FIX: Yahan hum client ke andar direct API Key pass kar rahe hain
+# Isse 401 ACCESS_TOKEN_TYPE_UNSUPPORTED error bilkul bypass ho jayega
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    api_key=api_key
+)
 
 # Upload
 uploaded_file = st.file_uploader(
