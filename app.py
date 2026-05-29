@@ -7,8 +7,12 @@ st.set_page_config(page_title="AI Bill Checker")
 
 st.title("🧾 AI Bill Checker")
 
-# Direct API Key
-api_key = "YOUR_NEW_API_KEY"
+# Streamlit Secrets se key load karna
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
+    st.stop()
 
 # Configure Gemini
 genai.configure(api_key=api_key)
@@ -23,9 +27,7 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file:
-
     image = Image.open(uploaded_file)
-
     st.image(
         image,
         caption="Uploaded Bill",
@@ -33,14 +35,10 @@ if uploaded_file:
     )
 
     if st.button("Analyze Bill"):
-
         with st.spinner("Analyzing Bill..."):
-
             prompt = """
             Extract bill items and total amount.
-
             Return ONLY valid JSON.
-
             Example:
             {
               "items":[
@@ -54,13 +52,10 @@ if uploaded_file:
               "total":"100"
             }
             """
-
             try:
-
                 response = model.generate_content(
                     [prompt, image]
                 )
-
                 text = response.text
 
                 # Remove markdown
@@ -68,15 +63,11 @@ if uploaded_file:
                 text = text.replace("```", "")
 
                 data = json.loads(text)
-
                 st.success("Analysis Complete ✅")
-
                 st.json(data)
 
             except Exception as e:
-
                 error_msg = str(e)
-
                 if "429" in error_msg:
                     st.error("Gemini API quota exceeded. Try later.")
                 elif "404" in error_msg:
