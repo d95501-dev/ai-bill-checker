@@ -14,14 +14,11 @@ else:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# 100% Working Fix for 401 error: API key ko direct client settings ke request options mein pass karna
-# Isse purani library direct Google AI Studio ki key accept karegi bina OAuth confuse hue
-try:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-except Exception as e:
-    st.error(f"Initialization Error: {e}")
-    st.stop()
+# Purani library ke liye global configuration ka sabse stable tarika
+genai.configure(api_key=api_key)
+
+# Stable model call
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Upload Box
 uploaded_file = st.file_uploader(
@@ -56,12 +53,8 @@ if uploaded_file:
             }
             """
             try:
-                # Yahan hum client ke core configurations ko strict kar rahe hain taaki login cookie ya token na mange
-                response = model.generate_content(
-                    contents=[prompt, image],
-                    request_options={"api_key": api_key}
-                )
-                
+                # Purani library me content pass karne ka standard tareeqa bina kisi extra argument ke
+                response = model.generate_content([prompt, image])
                 text = response.text
 
                 # Markdown clean up
@@ -77,6 +70,7 @@ if uploaded_file:
                 if "429" in error_msg:
                     st.error("Gemini API quota exceeded. Try later.")
                 elif "401" in error_msg or "400" in error_msg:
-                    st.error("API Key Authentication Failed. Re-check the key in Manage App -> Secrets.")
+                    st.error("API Key Authentication Failed. Re-check your key inside Manage App -> Secrets.")
                 else:
                     st.error(f"Analysis Error: {error_msg}")
+
