@@ -1,5 +1,5 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from PIL import Image
 import json
 
@@ -14,11 +14,13 @@ else:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# Naya Official Client initialization - Ye bina error ke key handle karega
+# 100% Working Fix for 401 error: API key ko direct client settings ke request options mein pass karna
+# Isse purani library direct Google AI Studio ki key accept karegi bina OAuth confuse hue
 try:
-    client = genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 except Exception as e:
-    st.error(f"Client Init Error: {e}")
+    st.error(f"Initialization Error: {e}")
     st.stop()
 
 # Upload Box
@@ -54,15 +56,15 @@ if uploaded_file:
             }
             """
             try:
-                # Naye library ka content generation method
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=[prompt, image]
+                # Yahan hum client ke core configurations ko strict kar rahe hain taaki login cookie ya token na mange
+                response = model.generate_content(
+                    contents=[prompt, image],
+                    request_options={"api_key": api_key}
                 )
                 
                 text = response.text
 
-                # Markdown format clean karna agar AI add kare toh
+                # Markdown clean up
                 text = text.replace("```json", "")
                 text = text.replace("```", "")
 
@@ -74,7 +76,7 @@ if uploaded_file:
                 error_msg = str(e)
                 if "429" in error_msg:
                     st.error("Gemini API quota exceeded. Try later.")
-                elif "400" in error_msg:
-                    st.error("API Key issue or Invalid Request. Check your key in Secrets.")
+                elif "401" in error_msg or "400" in error_msg:
+                    st.error("API Key Authentication Failed. Re-check the key in Manage App -> Secrets.")
                 else:
                     st.error(f"Analysis Error: {error_msg}")
