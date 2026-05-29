@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import json
 
@@ -14,14 +14,14 @@ else:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# FIX: Yahan hum client ke andar direct API Key pass kar rahe hain
-# Isse 401 ACCESS_TOKEN_TYPE_UNSUPPORTED error bilkul bypass ho jayega
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    api_key=api_key
-)
+# Naya Official Client initialization - Ye bina error ke key handle karega
+try:
+    client = genai.Client(api_key=api_key)
+except Exception as e:
+    st.error(f"Client Init Error: {e}")
+    st.stop()
 
-# Upload
+# Upload Box
 uploaded_file = st.file_uploader(
     "Upload Bill Image",
     type=["jpg", "jpeg", "png"]
@@ -54,12 +54,15 @@ if uploaded_file:
             }
             """
             try:
-                response = model.generate_content(
-                    [prompt, image]
+                # Naye library ka content generation method
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash',
+                    contents=[prompt, image]
                 )
+                
                 text = response.text
 
-                # Remove markdown
+                # Markdown format clean karna agar AI add kare toh
                 text = text.replace("```json", "")
                 text = text.replace("```", "")
 
@@ -71,7 +74,7 @@ if uploaded_file:
                 error_msg = str(e)
                 if "429" in error_msg:
                     st.error("Gemini API quota exceeded. Try later.")
-                elif "404" in error_msg:
-                    st.error("Model not found.")
+                elif "400" in error_msg:
+                    st.error("API Key issue or Invalid Request. Check your key in Secrets.")
                 else:
                     st.error(f"Analysis Error: {error_msg}")
