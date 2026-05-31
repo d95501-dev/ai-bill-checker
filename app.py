@@ -4,11 +4,16 @@ from PIL import Image
 import json
 import re
 
+st.set_page_config(page_title="AI Bill Checker")
+
+st.title("🧾 AI Bill Checker")
+
 api_key = st.secrets["GEMINI_API_KEY"]
 
 genai.configure(api_key=api_key)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Available Gemini model
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 uploaded_file = st.file_uploader(
     "Upload Bill",
@@ -19,11 +24,26 @@ if uploaded_file:
 
     image = Image.open(uploaded_file)
 
+    st.image(image, caption="Uploaded Bill", use_container_width=True)
+
     if st.button("Analyze"):
 
         prompt = """
         Extract bill items and total amount.
-        Return ONLY JSON.
+        Return ONLY valid JSON.
+
+        Example:
+        {
+          "items":[
+            {
+              "name":"Rice",
+              "qty":"2",
+              "rate":"50",
+              "amount":"100"
+            }
+          ],
+          "total":"100"
+        }
         """
 
         try:
@@ -45,13 +65,4 @@ if uploaded_file:
             st.json(data)
 
         except Exception as e:
-            error_msg = str(e)
-
-            if "429" in error_msg:
-                st.error("Gemini API quota exceeded. Try later.")
-
-            elif "401" in error_msg or "400" in error_msg:
-                st.error("API Key Authentication Failed.")
-
-            else:
-                st.error(f"Analysis Error: {error_msg}")
+            st.error(f"Analysis Error: {str(e)}")
