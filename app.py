@@ -41,9 +41,17 @@ if uploaded_file:
 
             data = json.loads(text)
 
+            st.success("Analysis Complete ✅")
             st.json(data)
 
         except Exception as e:
-            st.error(str(e))
-                    st.error(f"Analysis Error: {error_msg}")
+            error_msg = str(e)
 
+            if "429" in error_msg:
+                st.error("Gemini API quota exceeded. Try later.")
+
+            elif "401" in error_msg or "400" in error_msg:
+                st.error("API Key Authentication Failed.")
+
+            else:
+                st.error(f"Analysis Error: {error_msg}")
