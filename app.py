@@ -1,170 +1,182 @@
+````python
+import streamlit as st
+import google.generativeai as genai
+from PIL import Image
 import pandas as pd
 from io import BytesIO
-st.success("Analysis Complete ✅")
-st.json(data)
-st.success("Analysis Complete ✅")
+import json
+import re
 
-items = data.get("items", [])
+st.set_page_config(page_title="AI Bill Checker")
 
-if items:
+st.title("🧾 AI Bill Checker")
 
-    df = pd.DataFrame(items)
+api_key = st.secrets["GEMINI_API_KEY"]
 
-    st.subheader("📋 Bill Items")
+genai.configure(api_key=api_key)
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True
+model = genai.GenerativeModel("gemini-2.5-flash")
+
+uploaded_file = st.file_uploader(
+    "Upload Bill",
+    type=["jpg", "jpeg", "png"]
+)
+
+if uploaded_file:
+
+    image = Image.open(uploaded_file)
+
+    st.image(
+        image,
+        caption="Uploaded Bill",
+        use_container_width=True
     )
 
-    try:
-        df["amount"] = pd.to_numeric(
-            df["amount"],
-            errors="coerce"
-        ).fillna(0)
+    if st.button("Analyze"):
 
-        calculated_total = float(df["amount"].sum())
-    except:
-        calculated_total = 0
+        with st.spinner("Analyzing Bill..."):
 
-    try:
-        bill_total = float(data.get("total", 0))
-    except:
-        bill_total = 0
+            prompt = """
+            Extract bill items and total amount.
 
-    st.divider()
+            Return ONLY valid JSON.
 
-    col1, col2 = st.columns(2)
+            Example:
+            {
+              "items":[
+                {
+                  "name":"Rice",
+                  "qty":"2",
+                  "rate":"50",
+                  "amount":"100"
+                }
+              ],
+              "total":"100"
+            }
+            """
 
-    with col1:
-        st.metric(
-            "💰 Calculated Total",
-            f"₹{calculated_total:,.2f}"
-        )
+            try:
 
-    with col2:
-        st.metric(
-            "🧾 Bill Total",
-            f"₹{bill_total:,.2f}"
-        )
+                response = model.generate_content(
+                    [prompt, image]
+                )
 
-    difference = abs(calculated_total - bill_total)
+                text = response.text.strip()
 
-    if difference < 1:
-        st.success("✅ Bill Total Matched")
-    else:
-        st.error(
-            f"❌ Bill Mismatch (Difference ₹{difference:,.2f})"
-        )
+                text = text.replace(
+                    "```json",
+                    ""
+                ).replace(
+                    "```",
+                    ""
+                )
 
-    st.divider()
+                match = re.search(
+                    r"\{.*\}",
+                    text,
+                    re.DOTALL
+                )
 
-    excel_buffer = BytesIO()
+                if match:
+                    text = match.group(0)
 
-    with pd.ExcelWriter(
-        excel_buffer,
-        engine="openpyxl"
-    ) as writer:
-        df.to_excel(
-            writer,
-            sheet_name="Bill Items",
-            index=False
-        )
+                data = json.loads(text)
 
-    st.download_button(
-        "📥 Download Excel",
-        data=excel_buffer.getvalue(),
-        file_name="bill_report.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+                st.success(
+                    "Analysis Complete ✅"
+                )
 
-    csv = df.to_csv(index=False)
+                items = data.get(
+                    "items",
+                    []
+                )
 
-    st.download_button(
-        "📄 Download CSV",
-        data=csv,
-        file_name="bill_report.csv",
-        mime="text/csv"
-    )
+                if items:
 
-else:
-    st.warning("No bill items found.")
-items = data.get("items", [])
+                    df = pd.DataFrame(items)
 
-if items:
+                    st.subheader(
+                        "📋 Bill Items"
+                    )
 
-    df = pd.DataFrame(items)
+                    st.dataframe(
+                        df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-    # Amount ko numeric banao
-    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+                    if "amount" in df.columns:
+                        df["amount"] = pd.to_numeric(
+                            df["amount"],
+                            errors="coerce"
+                        ).fillna(0)
 
-    st.subheader("📋 Bill Items")
+                    calculated_total = float(
+                        df["amount"].sum()
+                    )
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True
-    )
+                    try:
+                        bill_total = float(
+                            data.get(
+                                "total",
+                                0
+                            )
+                        )
+                    except:
+                        bill_total = 0
 
-    # Totals
-    calculated_total = float(df["amount"].sum())
+                    col1, col2 = st.columns(2)
 
-    try:
-        bill_total = float(data.get("total", 0))
-    except:
-        bill_total = 0
+                    with col1:
+                        st.metric(
+                            "💰 Calculated Total",
+                            f"₹{calculated_total:,.2f}"
+                        )
 
-    st.divider()
+                    with col2:
+                        st.metric(
+                            "🧾 Bill Total",
+                            f"₹{bill_total:,.2f}"
+                        )
 
-    col1, col2 = st.columns(2)
+                    diff = abs(
+                        calculated_total -
+                        bill_total
+                    )
 
-    with col1:
-        st.metric(
-            label="💰 Calculated Total",
-            value=f"₹{calculated_total:,.2f}"
-        )
+                    if diff < 1:
+                        st.success(
+                            "✅ Bill Total Matched"
+                        )
+                    else:
+                        st.error(
+                            f"❌ Bill Mismatch (₹{diff:,.2f})"
+                        )
 
-    with col2:
-        st.metric(
-            label="🧾 Bill Total",
-            value=f"₹{bill_total:,.2f}"
-        )
+                    excel_buffer = BytesIO()
 
-    difference = abs(calculated_total - bill_total)
+                    with pd.ExcelWriter(
+                        excel_buffer,
+                        engine="openpyxl"
+                    ) as writer:
+                        df.to_excel(
+                            writer,
+                            index=False
+                        )
 
-    if difference < 1:
-        st.success("✅ Bill Total Matched")
-    else:
-        st.error(
-            f"❌ Bill Mismatch | Difference ₹{difference:,.2f}"
-        )
+                    st.download_button(
+                        "📥 Download Excel",
+                        data=excel_buffer.getvalue(),
+                        file_name="bill_report.xlsx"
+                    )
 
-    st.divider()
+                else:
+                    st.warning(
+                        "No items found."
+                    )
 
-    # Excel Download
-    excel_buffer = BytesIO()
-
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df.to_excel(
-            writer,
-            sheet_name="Bill Items",
-            index=False
-        )
-
-    st.download_button(
-        label="📥 Download Excel",
-        data=excel_buffer.getvalue(),
-        file_name="bill_report.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # CSV Download
-    csv = df.to_csv(index=False)
-
-    st.download_button(
-        label="📄 Download CSV",
-        data=csv,
-        file_name="bill_report.csv",
-        mime="text/csv"
-    )
+            except Exception as e:
+                st.error(
+                    f"Analysis Error: {str(e)}"
+                )
+````
