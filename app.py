@@ -16,11 +16,21 @@ st.title("🧾 AI Bill Checker")
 
 # Load API Key
 
+# Load API Key
 try:
-api_key = st.secrets["GEMINI_API_KEY"]
+    api_key = st.secrets["GEMINI_API_KEY"]
 except Exception:
-st.error("GEMINI_API_KEY not found in Streamlit Secrets.")
-st.stop()
+    st.error("GEMINI_API_KEY not found in Streamlit Secrets.")
+    st.stop()
+
+# Configure Gemini
+genai.configure(api_key=api_key)
+
+try:
+    model = genai.GenerativeModel("gemini-2.5-flash")
+except Exception as e:
+    st.error(f"Model Error: {e}")
+    st.stop()
 
 # Configure Gemini
 
