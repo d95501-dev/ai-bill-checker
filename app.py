@@ -6,6 +6,8 @@ from io import BytesIO
 import json
 import re
 
+# Page Config
+
 st.set_page_config(
 page_title="AI Bill Checker",
 page_icon="🧾",
@@ -16,25 +18,17 @@ st.title("🧾 AI Bill Checker")
 
 # Load API Key
 
-# Load API Key
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
+api_key = st.secrets["GEMINI_API_KEY"]
 except Exception:
-    st.error("GEMINI_API_KEY not found in Streamlit Secrets.")
-    st.stop()
-
-# Configure Gemini
-genai.configure(api_key=api_key)
-
-try:
-    model = genai.GenerativeModel("gemini-2.5-flash")
-except Exception as e:
-    st.error(f"Model Error: {e}")
-    st.stop()
+st.error("GEMINI_API_KEY not found in Streamlit Secrets.")
+st.stop()
 
 # Configure Gemini
 
 genai.configure(api_key=api_key)
+
+# Load Model
 
 try:
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -49,7 +43,7 @@ uploaded_file = st.file_uploader(
 type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file:
+if uploaded_file is not None:
 
 ````
 image = Image.open(uploaded_file)
@@ -62,10 +56,10 @@ st.image(
 
 if st.button("🔍 Analyze Bill"):
 
-    with st.spinner("Analyzing bill..."):
+    with st.spinner("Analyzing Bill..."):
 
         prompt = """
-        Read this bill carefully.
+        Read the bill carefully.
 
         Extract all bill items and total amount.
 
@@ -74,15 +68,15 @@ if st.button("🔍 Analyze Bill"):
         Example:
 
         {
-          "items":[
+          "items": [
             {
-              "name":"Milk",
-              "qty":"2",
-              "rate":"58",
-              "amount":"116"
+              "name": "Milk",
+              "qty": "2",
+              "rate": "58",
+              "amount": "116"
             }
           ],
-          "total":"116"
+          "total": "116"
         }
         """
 
@@ -116,6 +110,7 @@ if st.button("🔍 Analyze Bill"):
                 st.warning("No bill items found.")
                 st.stop()
 
+            # Create DataFrame
             df = pd.DataFrame(items)
 
             st.subheader("📋 Bill Items")
@@ -126,7 +121,7 @@ if st.button("🔍 Analyze Bill"):
                 hide_index=True
             )
 
-            # Amount column numeric
+            # Convert amount column
             if "amount" in df.columns:
                 df["amount"] = pd.to_numeric(
                     df["amount"],
@@ -196,9 +191,7 @@ if st.button("🔍 Analyze Bill"):
             )
 
             # CSV Download
-            csv_data = df.to_csv(
-                index=False
-            )
+            csv_data = df.to_csv(index=False)
 
             st.download_button(
                 label="📄 Download CSV",
@@ -212,4 +205,3 @@ if st.button("🔍 Analyze Bill"):
                 f"Analysis Error: {str(e)}"
             )
 ````
-
