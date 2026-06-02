@@ -1,4 +1,31 @@
 import streamlit as st
+import streamlit as st
+# ... बाकी imports ...
+
+# Professional Dashboard Styling
+st.markdown("""
+    <style>
+    /* खाली बॉक्स को प्रोफेशनल कार्ड में बदलना */
+    .dashboard-card {
+        background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%);
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #4b6eff;
+        color: white;
+        margin-bottom: 20px;
+    }
+    /* हेडर और टेक्स्ट का स्टाइल */
+    .stApp { background-color: #0e1117; }
+    </style>
+""", unsafe_allow_html=True)
+
+# खाली बॉक्स की जगह यह कोड लिखें
+st.markdown("""
+    <div class="dashboard-card">
+        <h3>🖥️ Deep CSC - Hardware Connectivity Bridge</h3>
+        <p>सिस्टम तैयार है। कृपया अपना कार्य करने के लिए 'Scanner' या 'Printer' मोड चुनें।</p>
+    </div>
+""", unsafe_allow_html=True)
 import google.generativeai as genai
 from PIL import Image
 import pandas as pd
