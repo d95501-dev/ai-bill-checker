@@ -18,7 +18,7 @@ except Exception:
 genai.configure(api_key=api_key)
 
 try:
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 except Exception as e:
     st.error(f"Model Error: {e}")
     st.stop()
@@ -44,58 +44,43 @@ if uploaded_file is not None:
                 response = model.generate_content([prompt, image])
                 text = response.text.strip()
                 text = text.replace("```json", "").replace("```", "")
-
                 match = re.search(r"\{.*\}", text, re.DOTALL)
                 if match:
                     text = match.group(0)
-
                 data = json.loads(text)
-
                 st.success("✅ Analysis Complete")
-
                 items = data.get("items", [])
                 if not items:
                     st.warning("No bill items found.")
                     st.stop()
-
                 df = pd.DataFrame(items)
-
                 st.subheader("📋 Bill Items")
                 st.dataframe(df, use_container_width=True, hide_index=True)
-
                 if "amount" in df.columns:
                     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
-
                 calculated_total = float(df["amount"].sum())
-
                 try:
                     bill_total = float(data.get("total", 0))
                 except Exception:
                     bill_total = 0
-
                 c1, c2 = st.columns(2)
                 with c1:
                     st.metric("💰 Calculated Total", f"₹{calculated_total:,.2f}")
                 with c2:
                     st.metric("🧾 Bill Total", f"₹{bill_total:,.2f}")
-
                 diff = abs(calculated_total - bill_total)
-
                 if diff < 1:
                     st.success("✅ Bill Total Matched")
                 else:
                     st.error(f"❌ Bill Mismatch (Difference ₹{diff:,.2f})")
-
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False, sheet_name="Bill Items")
-
                 st.download_button(
                     "📥 Download Excel",
                     data=excel_buffer.getvalue(),
                     file_name="bill_report.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
             except Exception as e:
                 st.error(f"Analysis Error: {e}")
