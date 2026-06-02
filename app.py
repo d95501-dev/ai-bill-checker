@@ -6,21 +6,19 @@ from io import BytesIO
 import json
 import re
 
-# पेज की सेटिंग्स
 st.set_page_config(page_title="AI Bill Checker", page_icon="🧾", layout="wide")
 
 st.title("🧾 AI Bill Checker")
 
-# API कॉन्फ़िगरेशन
+# API Configuration
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
 except Exception as e:
-    st.error("API Key error. Please check your secrets.")
+    st.error("API Key not found or Config error.")
     st.stop()
 
-# बिल अपलोडर
 uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
@@ -43,4 +41,4 @@ if uploaded_file is not None:
                 st.metric("Total Amount", f"₹{total}")
                 
             except Exception as e:
-                st.error("Error analyzing bill.")
+                st.error("Error: Could not process the bill.")
