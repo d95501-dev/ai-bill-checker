@@ -25,7 +25,7 @@ try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel("gemini-2.0-flash")
 except Exception as e:
-    st.error(f"API Configuration Error: {e}")
+    st.error("API Key missing or invalid!")
     st.stop()
 
 # -----------------------------
@@ -33,41 +33,40 @@ except Exception as e:
 # -----------------------------
 def analyze_bill(image):
     prompt = """
-    Extract bill details from this image.
+    Extract items (name, qty, rate, amount) and total from this bill.
     Return ONLY a valid JSON object. 
-    Format: {"items": [{"name": "string", "qty": "string", "rate": "string", "amount": "string"}], "total": "value"}
-    Do not add any conversational text or markdown formatting.
+    Format example: 
+    {"items": [{"name": "item1", "qty": "1", "rate": "100", "amount": "100"}], "total": "100"}
+    No markdown, no extra text.
     """
     try:
         response = model.generate_content([prompt, image])
-        
-        # सुरक्षा जाँच: क्या रिस्पॉन्स खाली है?
-        if response.text is None:
-            st.error("AI ने कोई रिस्पॉन्स नहीं दिया।")
+        if not response or not response.text:
             return None
-            
-        # रिस्पॉन्स को साफ करें
+        
         text = response.text.replace("```json", "").replace("```", "").strip()
-        
-        # JSON लोड करें
         return json.loads(text)
-        
-    except json.JSONDecodeError as e:
-        st.error(f"JSON Parsing Error: {e}")
-        st.code(response.text) # यह देखने के लिए कि AI ने क्या गलत भेजा
-        return None
     except Exception as e:
-        st.error(f"Analysis Error: {e}")
+        st.error(f"AI Analysis Error: {e}")
         return None
 
 def show_results(data):
     if not data:
+        st.warning("No data found to display.")
         return
-        
+    
     st.subheader("📋 Bill Items")
-    df = pd.DataFrame(data.get("items", []))
-    st.dataframe(df, use_container_width=True)
-    st.metric("💰 Total Amount", f"₹ {data.get('total', 0)}")
+    # Dataframe बनाने से पहले चेक करें कि items list मौजूद है
+    items = data.get("items", [])
+    if items:
+        df = pd.DataFrame(items)
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No items detected.")
+    
+    # यहाँ एरर आ रहा था: .upper() हटाने के लिए str() का उपयोग करें
+    total = data.get("total", "0")
+    st.metric("💰 Total Amount", f"₹ {total}")
 
 # -----------------------------
 # UI LOGIC
@@ -89,8 +88,7 @@ with tab1:
         if st.button("🔍 Analyze Uploaded Bill"):
             with st.spinner("Analyzing..."):
                 data = analyze_bill(image)
-                if data:
-                    show_results(data)
+                show_results(data)
 
 # --- TAB 2: SCANNER (ONLY LOCAL) ---
 if IS_LOCAL:
@@ -119,9 +117,6 @@ if IS_LOCAL:
                         img = Image.open(output_file)
                         st.image(img, use_container_width=True)
                         data = analyze_bill(img)
-                        if data:
-                            show_results(data)
-                    else:
-                        st.error("Scan file not found.")
+                        show_results(data)
                 except Exception as e:
                     st.error(f"Scanner Error: {e}")
