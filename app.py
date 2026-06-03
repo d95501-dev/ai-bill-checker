@@ -10,7 +10,6 @@ import platform
 # -----------------------------
 # ENVIRONMENT DETECTION
 # -----------------------------
-# यह चेक करता है कि क्या यह Windows है और NAPS2 मौजूद है
 IS_LOCAL = (
     platform.system() == "Windows"
     and os.path.exists(r"C:\Program Files\NAPS2\NAPS2.Console.exe")
@@ -25,19 +24,46 @@ st.set_page_config(page_title="Deep CSC - AI Bill Processor", layout="wide")
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel("gemini-2.0-flash")
-except:
-    st.error("API Key missing!")
+except Exception as e:
+    st.error(f"API Configuration Error: {e}")
+    st.stop()
 
 # -----------------------------
 # FUNCTIONS
 # -----------------------------
 def analyze_bill(image):
-    prompt = "Extract items (name, qty, rate, amount) and total from this bill. Return JSON only."
-    response = model.generate_content([prompt, image])
-    text = response.text.replace("```json", "").replace("```", "").strip()
-    return json.loads(text)
+    prompt = """
+    Extract bill details from this image.
+    Return ONLY a valid JSON object. 
+    Format: {"items": [{"name": "string", "qty": "string", "rate": "string", "amount": "string"}], "total": "value"}
+    Do not add any conversational text or markdown formatting.
+    """
+    try:
+        response = model.generate_content([prompt, image])
+        
+        # सुरक्षा जाँच: क्या रिस्पॉन्स खाली है?
+        if response.text is None:
+            st.error("AI ने कोई रिस्पॉन्स नहीं दिया।")
+            return None
+            
+        # रिस्पॉन्स को साफ करें
+        text = response.text.replace("```json", "").replace("```", "").strip()
+        
+        # JSON लोड करें
+        return json.loads(text)
+        
+    except json.JSONDecodeError as e:
+        st.error(f"JSON Parsing Error: {e}")
+        st.code(response.text) # यह देखने के लिए कि AI ने क्या गलत भेजा
+        return None
+    except Exception as e:
+        st.error(f"Analysis Error: {e}")
+        return None
 
 def show_results(data):
+    if not data:
+        return
+        
     st.subheader("📋 Bill Items")
     df = pd.DataFrame(data.get("items", []))
     st.dataframe(df, use_container_width=True)
@@ -63,7 +89,8 @@ with tab1:
         if st.button("🔍 Analyze Uploaded Bill"):
             with st.spinner("Analyzing..."):
                 data = analyze_bill(image)
-                show_results(data)
+                if data:
+                    show_results(data)
 
 # --- TAB 2: SCANNER (ONLY LOCAL) ---
 if IS_LOCAL:
@@ -92,6 +119,9 @@ if IS_LOCAL:
                         img = Image.open(output_file)
                         st.image(img, use_container_width=True)
                         data = analyze_bill(img)
-                        show_results(data)
+                        if data:
+                            show_results(data)
+                    else:
+                        st.error("Scan file not found.")
                 except Exception as e:
                     st.error(f"Scanner Error: {e}")
