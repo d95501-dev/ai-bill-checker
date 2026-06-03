@@ -33,138 +33,96 @@ except Exception:
 def analyze_bill(image):
     prompt = """
     Extract bill details and return ONLY valid JSON.
-
     Format:
     {
       "items":[
-        {
-          "name":"",
-          "qty":"",
-          "rate":"",
-          "amount":""
-        }
+        {"name":"", "qty":"", "rate":"", "amount":""}
       ],
       "total":""
     }
     """
-
     response = model.generate_content([prompt, image])
-
-    text = response.text
-    text = text.replace("```json", "")
-    text = text.replace("```", "")
-    text = text.strip()
-
+    text = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(text)
-
 
 def show_results(data):
     st.subheader("📋 Bill Items")
-
     df = pd.DataFrame(data.get("items", []))
     st.dataframe(df, use_container_width=True)
-
     total = data.get("total", 0)
     st.metric("💰 Total Amount", f"₹ {total}")
-
 
 # -----------------------------
 # TABS
 # -----------------------------
-tab1, tab2 = st.tabs(
-    ["📤 Upload Bill", "📠 Scanner Scan"]
-)
+tab1, tab2 = st.tabs(["📤 Upload Bill", "📠 Scanner Scan"])
 
 # ==================================================
 # UPLOAD BILL
 # ==================================================
 with tab1:
-
-    uploaded_file = st.file_uploader(
-        "Upload Bill Image",
-        type=["jpg", "jpeg", "png"]
-    )
-
+    uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
     if uploaded_file:
-
         image = Image.open(uploaded_file)
-
-        st.image(
-            image,
-            caption="Uploaded Bill",
-            use_container_width=True
-        )
-
+        st.image(image, caption="Uploaded Bill", use_container_width=True)
         if st.button("🔍 Analyze Uploaded Bill"):
-
             with st.spinner("Analyzing Bill..."):
-
                 try:
                     data = analyze_bill(image)
                     show_results(data)
-
                 except Exception as e:
-                    st.error(str(e))
-
+                    st.error(f"Error: {str(e)}")
 
 # ==================================================
 # SCANNER TAB
 # ==================================================
 with tab2:
-
     st.subheader("📠 Brother Scanner")
-
-    dpi = st.selectbox(
-        "Select DPI",
-        [100, 200, 300, 600],
-        index=2
-    )
+    dpi = st.selectbox("Select DPI", [100, 200, 300, 600], index=2)
 
     if st.button("🚀 Trigger Flatbed Scan"):
+        output_file = os.path.abspath("scan.jpg")
 
-        with st.spinner("Scanning Document..."):
+        # पुरानी scan delete करें
+        if os.path.exists(output_file):
+            os.remove(output_file)
 
-            output_file = "scan.jpg"
+        cmd = [
+            r"C:\Program Files\NAPS2\NAPS2.Console.exe",
+            "--driver", "wia",
+            "--device", "Brother DCP-T820DW",
+            "--source", "glass",
+            "--dpi", str(dpi),
+            "-o", output_file,
+            "-f"
+        ]
 
-            cmd = [
-                r"C:\Program Files\NAPS2\NAPS2.Console.exe",
-                "--driver", "wia",
-                "--device", "Brother DCP-T820DW",
-                "--source", "glass",
-                "--dpi", str(dpi),
-                "-o", output_file,
-                "-f"
-            ]
+        st.info("Starting Scanner...")
 
+        try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=120
             )
 
+            # Debug Info
+            if result.returncode != 0:
+                st.warning(f"Return Code: {result.returncode}")
+                if result.stderr: st.code(result.stderr)
+            
             if os.path.exists(output_file):
-
                 st.success("✅ Scan Complete")
-
                 image = Image.open(output_file)
+                st.image(image, caption="Scanned Bill", use_container_width=True)
 
-                st.image(
-                    image,
-                    caption="Scanned Bill",
-                    use_container_width=True
-                )
-
-                # AUTO ANALYZE
                 with st.spinner("Analyzing Bill..."):
-
-                    try:
-                        data = analyze_bill(image)
-                        show_results(data)
-
-                    except Exception as e:
-                        st.error(str(e))
-
+                    data = analyze_bill(image)
+                    show_results(data)
             else:
+                st.error("❌ Scan file not created. Check scanner connection/NAPS2 settings.")
+                if result.stderr: st.code(result.stderr)
 
-                st.error("Scanner Error")
-                st.code(result.stderr)
+        except Exception as e:
+            st.error(f"Scanner Exception: {e}")
