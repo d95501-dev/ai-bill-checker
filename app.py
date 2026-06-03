@@ -7,6 +7,9 @@ import subprocess
 import os
 import platform
 
+# -----------------------------
+# ENVIRONMENT DETECTION
+# -----------------------------
 IS_LOCAL = (
     platform.system() == "Windows"
     and os.path.exists(r"C:\Program Files\NAPS2\NAPS2.Console.exe")
@@ -23,44 +26,47 @@ except Exception:
     st.stop()
 
 def analyze_bill(image):
-    prompt = "Extract items (name, qty, rate, amount), total, and vendor_name from this bill. Return ONLY JSON."
+    # बहुत ही सख्त JSON प्रॉम्प्ट
+    prompt = """
+    Extract: vendor_name, date, items (name, qty, rate, amount), total.
+    Return ONLY valid JSON. No extra text, no markdown.
+    """
     try:
         response = model.generate_content([prompt, image])
-        if not response or not response.text:
-            return None
-        
-        text = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(text)
-    except Exception as e:
-        # यहाँ AI का Raw output कैप्चर करें ताकि पता चले क्या गलती है
-        st.error(f"Error: {e}")
+        if response and response.text:
+            text = response.text.replace("```json", "").replace("```", "").strip()
+            return json.loads(text)
+        return None
+    except Exception:
         return None
 
 def show_results(data):
-    if not data:
-        st.error("No valid JSON data received from AI.")
+    if data is None:
+        st.error("AI से डेटा प्राप्त नहीं हो सका।")
         return
         
-    st.subheader("📋 Bill Items")
+    st.subheader("📋 Bill Details")
     
-    # 1. Vendor display (बिना .upper() के)
+    # यहाँ सुरक्षा: अगर key मौजूद न हो तो 'Unknown' दिखाएं, .upper() न लगाएं
     vendor = data.get("vendor_name", "Unknown Vendor")
-    st.write(f"🏪 Vendor: {vendor}")
+    date = data.get("date", "Unknown Date")
     
-    # 2. DataFrame display
+    st.write(f"🏪 Vendor: {vendor}")
+    st.write(f"🗓️ Invoice Date: {date}")
+    
     items = data.get("items", [])
     if items:
         df = pd.DataFrame(items)
         st.dataframe(df, use_container_width=True)
     
-    # 3. Total display
     total = data.get("total", "0")
     st.metric("💰 Total Amount", f"₹ {total}")
 
 st.title("🧾 Deep CSC - AI Bill Processor")
 
+# UI Logic
 if IS_LOCAL:
-    tab1, tab2 = st.tabs(["📤 Upload & Process", "📠 Scanner & Printer Console"])
+    tab1, tab2 = st.tabs(["📤 Upload & Process", "📠 Scanner"])
 else:
     tab1 = st.container()
 
