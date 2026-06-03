@@ -3,13 +3,13 @@ import google.generativeai as genai
 from PIL import Image
 import pandas as pd
 import json
-import re
-from io import BytesIO
+import subprocess
+import os
 
 # Page Setup
-st.set_page_config(page_title="AI Bill Checker", layout="wide")
+st.set_page_config(page_title="Professional AI Bill Checker", layout="wide")
 
-st.title("🧾 AI Bill Checker")
+st.title("📠 Professional AI Bill Checker")
 
 # API Configuration
 try:
@@ -20,28 +20,61 @@ except Exception:
     st.error("API Key not set in secrets.")
     st.stop()
 
-# Bill Uploader
-uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
+# Layout: Two columns for Scanner and Analysis
+col1, col2 = st.columns([1, 1])
 
+output_file = "scan.jpg"
+
+with col1:
+    st.subheader("1. Scan Process")
+    if st.button("🚀 Trigger Flatbed Scan"):
+        with st.spinner("Scanner working..."):
+            cmd = [
+                r"C:\Program Files\NAPS2\NAPS2.Console.exe",
+                "--driver", "wia",
+                "--device", "Brother DCP-T820DW",
+                "--source", "glass",
+                "--dpi", "300",
+                "-o", output_file,
+                "-f"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if os.path.exists(output_file):
+                st.success("✅ Scan Complete")
+            else:
+                st.error(f"Scan failed: {result.stderr}")
+
+    if os.path.exists(output_file):
+        img = Image.open(output_file)
+        st.image(img, caption="Scanned Bill", use_container_width=True)
+
+with col2:
+    st.subheader("2. AI Analysis")
+    if st.button("🔍 Analyze Scanned Bill"):
+        if not os.path.exists(output_file):
+            st.warning("Please perform a scan first!")
+        else:
+            with st.spinner("AI is analyzing..."):
+                try:
+                    img = Image.open(output_file)
+                    prompt = "Extract items (name, qty, rate, amount) and total from this bill. Return JSON only."
+                    response = model.generate_content([prompt, img])
+                    
+                    text = response.text.replace("```json", "").replace("```", "")
+                    data = json.loads(text)
+                    
+                    df = pd.DataFrame(data.get("items", []))
+                    st.subheader("📋 Bill Items")
+                    st.dataframe(df, use_container_width=True)
+                    
+                    total = data.get("total", 0)
+                    st.metric("Total Amount", f"₹{total}")
+                except Exception as e:
+                    st.error(f"Error processing bill: {e}")
+
+# Optional: File Uploader for backup
+st.divider()
+uploaded_file = st.file_uploader("Or Upload Bill Image Manually", type=["jpg", "jpeg", "png"])
 if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Bill", use_container_width=True)
-
-    if st.button("🔍 Analyze Bill"):
-        with st.spinner("Analyzing..."):
-            prompt = "Extract items (name, qty, rate, amount) and total from this bill. Return JSON only."
-            try:
-                response = model.generate_content([prompt, image])
-                text = response.text.replace("```json", "").replace("```", "")
-                data = json.loads(text)
-                
-                # Display Results
-                df = pd.DataFrame(data.get("items", []))
-                st.subheader("📋 Bill Items")
-                st.dataframe(df, use_container_width=True)
-                
-                total = data.get("total", 0)
-                st.metric("Total Amount", f"₹{total}")
-                
-            except Exception as e:
-                st.error("Error processing bill.")
+    st.image(uploaded_file, use_container_width=True)
