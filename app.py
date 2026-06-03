@@ -6,9 +6,6 @@ import json
 import os
 import platform
 
-# -----------------------------
-# ENVIRONMENT DETECTION
-# -----------------------------
 IS_LOCAL = (
     platform.system() == "Windows"
     and os.path.exists(r"C:\Program Files\NAPS2\NAPS2.Console.exe")
@@ -16,7 +13,6 @@ IS_LOCAL = (
 
 st.set_page_config(page_title="Deep CSC - AI Bill Processor", layout="wide")
 
-# API Config
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel("gemini-2.0-flash")
@@ -25,37 +21,23 @@ except Exception:
     st.stop()
 
 def analyze_bill(image):
-    # बहुत ही सख्त JSON प्रॉम्प्ट
     prompt = """
     You are a strict JSON extractor. Read the bill image and return ONLY valid JSON.
     Fields (use null when missing):
-    - vendor_name (string or null)
-    - date (string or null)
-    - items: array of {name, qty, rate, amount} (or empty array)
-    - total (number or string or null)
-
+    - vendor_name
+    - date
+    - items: array of {name, qty, rate, amount}
+    - total
     Return ONLY JSON. No markdown, no explanation, no backticks.
     """
     try:
         response = model.generate_content([prompt, image])
-
-        # सुरक्षित चेक — response या response.text None हो सकता है
         if not response or not getattr(response, "text", None):
-            st.error("AI returned empty response.")  # debug message
+            st.error("AI returned empty response.")
             return None
 
-        raw = response.text.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as je:
-            st.error(f"JSON parse error: {je}")
-            # debugging के लिए raw output दिखाएं
-            st.code(raw)
-            return None
-
-        return data
+        raw = response.text.strip().replace("```json", "").replace("```", "").strip()
+        return json.loads(raw)
     except Exception as e:
         st.error(f"AI error: {e}")
         return None
@@ -67,47 +49,36 @@ def show_results(data):
 
     st.subheader("📋 Bill Details")
 
-    # None-safe extraction: अगर key missing या None है तो fallback
     vendor = data.get("vendor_name") or "Unknown Vendor"
-    vendor = str(vendor)  # अगर uppercase लगता है तो: str(vendor).upper()
-
     date = data.get("date") or "Unknown Date"
-    date = str(date)
 
     st.write(f"🏪 Vendor: {vendor}")
     st.write(f"🗓️ Invoice Date: {date}")
 
     items = data.get("items") or []
     if isinstance(items, list) and items:
-        # validate items entries to avoid unexpected None values
         cleaned = []
         for it in items:
-            if not isinstance(it, dict):
-                continue
-            name = it.get("name") or ""
-            qty = it.get("qty") or ""
-            rate = it.get("rate") or ""
-            amount = it.get("amount") or ""
-            cleaned.append({"name": name, "qty": qty, "rate": rate, "amount": amount})
-        df = pd.DataFrame(cleaned)
-        st.dataframe(df, use_container_width=True)
+            if isinstance(it, dict):
+                cleaned.append({
+                    "name": it.get("name") or "",
+                    "qty": it.get("qty") or "",
+                    "rate": it.get("rate") or "",
+                    "amount": it.get("amount") or ""
+                })
+        if cleaned:
+            st.dataframe(pd.DataFrame(cleaned), use_container_width=True)
     else:
         st.info("No items detected.")
 
-    total = data.get("total")
-    if total is None:
-        total_display = "0"
-    else:
-        total_display = str(total)
-    st.metric("💰 Total Amount", f"₹ {total_display}")
+    total = data.get("total") or "0"
+    st.metric("💰 Total Amount", f"₹ {total}")
 
-    # Debug: raw JSON inspector (temporary, helpful to trace None fields)
     with st.expander("Raw JSON (debug)"):
         st.json(data)
 
 st.title("🧾 Deep CSC - AI Bill Processor")
 
-# UI Logic
 if IS_LOCAL:
     tab1, tab2 = st.tabs(["📤 Upload & Process", "📠 Scanner"])
 else:
@@ -122,8 +93,4 @@ with tab1:
         if st.button("🔍 Analyze Bill"):
             with st.spinner("Analyzing..."):
                 data = analyze_bill(image)
-                try:
-                    show_results(data)
-                except Exception as e:
-                    # extra safety so UI पर technical traceback न टूटे, पर debugging info मिले
-                    st.error(f"Structural Parsing Fault: {e}")
+                show_results(data)
