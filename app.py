@@ -23,27 +23,36 @@ except Exception:
 def analyze_bill(image):
     prompt = """
     You are a strict JSON extractor. Read the bill image and return ONLY valid JSON.
-    Fields (use null when missing):
-    - vendor_name
-    - date
+    Fields:
+    - vendor_name: string or null
+    - date: string or null
     - items: array of {name, qty, rate, amount}
-    - total
+    - total: string or number or null
+
     Return ONLY JSON. No markdown, no explanation, no backticks.
     """
     try:
         response = model.generate_content([prompt, image])
+
         if not response or not getattr(response, "text", None):
             st.error("AI returned empty response.")
             return None
 
         raw = response.text.strip().replace("```json", "").replace("```", "").strip()
-        return json.loads(raw)
+
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as je:
+            st.error(f"JSON parse error: {je}")
+            st.code(raw)
+            return None
+
     except Exception as e:
         st.error(f"AI error: {e}")
         return None
 
 def show_results(data):
-    if not data:
+    if not isinstance(data, dict):
         st.error("AI से डेटा प्राप्त नहीं हो सका।")
         return
 
@@ -52,12 +61,13 @@ def show_results(data):
     vendor = data.get("vendor_name") or "Unknown Vendor"
     date = data.get("date") or "Unknown Date"
 
-    st.write(f"🏪 Vendor: {vendor}")
-    st.write(f"🗓️ Invoice Date: {date}")
+    st.write(f"🏪 Vendor: {str(vendor)}")
+    st.write(f"🗓️ Invoice Date: {str(date)}")
 
     items = data.get("items") or []
-    if isinstance(items, list) and items:
-        cleaned = []
+    cleaned = []
+
+    if isinstance(items, list):
         for it in items:
             if isinstance(it, dict):
                 cleaned.append({
@@ -66,13 +76,14 @@ def show_results(data):
                     "rate": it.get("rate") or "",
                     "amount": it.get("amount") or ""
                 })
-        if cleaned:
-            st.dataframe(pd.DataFrame(cleaned), use_container_width=True)
+
+    if cleaned:
+        st.dataframe(pd.DataFrame(cleaned), use_container_width=True)
     else:
         st.info("No items detected.")
 
     total = data.get("total") or "0"
-    st.metric("💰 Total Amount", f"₹ {total}")
+    st.metric("💰 Total Amount", f"₹ {str(total)}")
 
     with st.expander("Raw JSON (debug)"):
         st.json(data)
@@ -93,4 +104,7 @@ with tab1:
         if st.button("🔍 Analyze Bill"):
             with st.spinner("Analyzing..."):
                 data = analyze_bill(image)
-                show_results(data)
+                try:
+                    show_results(data)
+                except Exception as e:
+                    st.error(f"Structural Parsing Fault: {e}")
