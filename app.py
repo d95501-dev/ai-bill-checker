@@ -3,16 +3,22 @@ import google.generativeai as genai
 from PIL import Image
 import pandas as pd
 import json
+import subprocess
 import os
 import platform
 
+# -----------------------------
+# ENVIRONMENT DETECTION
+# -----------------------------
 IS_LOCAL = (
     platform.system() == "Windows"
     and os.path.exists(r"C:\Program Files\NAPS2\NAPS2.Console.exe")
 )
 
+# Page Config
 st.set_page_config(page_title="Deep CSC - AI Bill Processor", layout="wide")
 
+# API Config
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel("gemini-2.0-flash")
@@ -20,74 +26,74 @@ except Exception:
     st.error("API Key missing!")
     st.stop()
 
+# -----------------------------
+# FUNCTIONS
+# -----------------------------
 def analyze_bill(image):
     prompt = """
-    You are a strict JSON extractor. Read the bill image and return ONLY valid JSON.
-    Fields:
-    - vendor_name: string or null
-    - date: string or null
-    - items: array of {name, qty, rate, amount}
-    - total: string or number or null
-
-    Return ONLY JSON. No markdown, no explanation, no backticks.
+    Extract bill data and return ONLY valid JSON.
+    Format:
+    {"vendor_name": "", "date": "", "items": [{"name": "", "qty": "", "rate": "", "amount": ""}], "total": ""}
+    Rules: Return JSON only, no markdown, no explanation, no ```json, use empty string for null.
     """
     try:
         response = model.generate_content([prompt, image])
+        if not response: return None
+        raw = getattr(response, "text", "")
+        if not raw: return None
 
-        if not response or not getattr(response, "text", None):
-            st.error("AI returned empty response.")
-            return None
-
-        raw = response.text.strip().replace("```json", "").replace("```", "").strip()
-
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        
         try:
-            return json.loads(raw)
-        except json.JSONDecodeError as je:
-            st.error(f"JSON parse error: {je}")
-            st.code(raw)
-            return None
+            data = json.loads(raw)
+        except Exception:
+            start, end = raw.find("{"), raw.rfind("}")
+            if start != -1 and end != -1:
+                data = json.loads(raw[start:end + 1])
+            else: return None
 
+        if not isinstance(data, dict): return None
+        
+        # Cleanup
+        data["vendor_name"] = str(data.get("vendor_name") or "")
+        data["date"] = str(data.get("date") or "")
+        data["items"] = data.get("items") or []
+        data["total"] = str(data.get("total") or "")
+        return data
     except Exception as e:
-        st.error(f"AI error: {e}")
+        st.error(f"AI Error: {e}")
         return None
 
 def show_results(data):
     if not isinstance(data, dict):
-        st.error("AI से डेटा प्राप्त नहीं हो सका।")
+        st.error("Invalid bill structure")
         return
 
     st.subheader("📋 Bill Details")
-
-    vendor = data.get("vendor_name") or "Unknown Vendor"
-    date = data.get("date") or "Unknown Date"
-
-    st.write(f"🏪 Vendor: {str(vendor)}")
-    st.write(f"🗓️ Invoice Date: {str(date)}")
+    st.write(f"🏪 Vendor: {str(data.get('vendor_name') or 'Unknown')}")
+    st.write(f"🗓️ Invoice Date: {str(data.get('date') or 'Unknown')}")
 
     items = data.get("items") or []
-    cleaned = []
-
-    if isinstance(items, list):
-        for it in items:
-            if isinstance(it, dict):
-                cleaned.append({
-                    "name": it.get("name") or "",
-                    "qty": it.get("qty") or "",
-                    "rate": it.get("rate") or "",
-                    "amount": it.get("amount") or ""
+    if isinstance(items, list) and items:
+        clean_rows = []
+        for item in items:
+            if isinstance(item, dict):
+                clean_rows.append({
+                    "Name": str(item.get("name") or ""),
+                    "Qty": str(item.get("qty") or ""),
+                    "Rate": str(item.get("rate") or ""),
+                    "Amount": str(item.get("amount") or "")
                 })
-
-    if cleaned:
-        st.dataframe(pd.DataFrame(cleaned), use_container_width=True)
-    else:
-        st.info("No items detected.")
-
-    total = data.get("total") or "0"
-    st.metric("💰 Total Amount", f"₹ {str(total)}")
-
-    with st.expander("Raw JSON (debug)"):
+        if clean_rows:
+            st.dataframe(pd.DataFrame(clean_rows), use_container_width=True)
+    
+    st.metric("💰 Total Amount", f"₹ {str(data.get('total') or '0')}")
+    with st.expander("Raw JSON"):
         st.json(data)
 
+# -----------------------------
+# UI LOGIC
+# -----------------------------
 st.title("🧾 Deep CSC - AI Bill Processor")
 
 if IS_LOCAL:
@@ -99,12 +105,23 @@ with tab1:
     uploaded_file = st.file_uploader("Upload Bill Image", type=["jpg", "jpeg", "png"])
     if uploaded_file:
         image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Bill", use_column_width=True)
-
+        st.image(image, use_column_width=True)
         if st.button("🔍 Analyze Bill"):
             with st.spinner("Analyzing..."):
                 data = analyze_bill(image)
-                try:
+                show_results(data)
+
+if IS_LOCAL:
+    with tab2:
+        if st.button("🚀 Trigger Flatbed Scan"):
+            output_file = os.path.abspath("scan.jpg")
+            cmd = [r"C:\Program Files\NAPS2\NAPS2.Console.exe", "--driver", "wia", "--device", "Brother DCP-T820DW", "--source", "glass", "--dpi", "300", "-o", output_file, "-f"]
+            try:
+                subprocess.run(cmd, check=True)
+                if os.path.exists(output_file):
+                    img = Image.open(output_file)
+                    st.image(img, use_column_width=True)
+                    data = analyze_bill(img)
                     show_results(data)
-                except Exception as e:
-                    st.error(f"Structural Parsing Fault: {e}")
+            except Exception as e:
+                st.error(f"Scanner error: {e}")
